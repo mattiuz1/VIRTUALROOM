@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sala Virtual Instantânea - Voz, Chat & Compartilhamento</title>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+    <!-- Versão fixa. Para SRI, gere o hash e adicione integrity="sha384-..." crossorigin="anonymous" -->
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style type="text/tailwindcss">
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .scrollbar-custom::-webkit-scrollbar { width: 5px; }
+        .scrollbar-custom::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        .scrollbar-custom::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
+        .scrollbar-custom::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.8); }
+        .mic-wave { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); animation: pulse-wave 1.5s infinite cubic-bezier(0.66, 0, 0, 1); }
+        @keyframes pulse-wave { to { box-shadow: 0 0 0 12px rgba(16, 185, 129, 0); } }
+        @media (prefers-reduced-motion: reduce) { .mic-wave { animation: none; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.8); } }
+        .btn { @apply p-3 sm:px-5 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm flex items-center gap-2 transition-all active:scale-95 text-white; }
+        .btn-green { @apply bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/20; }
+        .btn-indigo { @apply bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20; }
+        .btn-rose { @apply bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-600/20; }
+        .btn-slate { @apply bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700/80; }
+        .tab { @apply px-3 py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 text-slate-400 hover:text-slate-200; }
+        .tab-active { @apply bg-indigo-600 text-white hover:text-white; }
+    </style>
+</head>
+<body class="h-dvh bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+
+    <!-- LOGIN -->
+    <div id="login-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+            <div class="text-center space-y-2 relative z-10">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 mb-1">
+                    <i class="fa-solid fa-headset text-2xl" aria-hidden="true"></i>
+                </div>
+                <h1 class="text-2xl font-bold tracking-tight text-white">Sala Virtual Instantânea</h1>
+                <p class="text-xs sm:text-sm text-slate-400">Bate-papo por voz, texto e compartilhamento de tela sem cadastro.</p>
+            </div>
+
+            <form id="login-form" class="space-y-4 relative z-10">
+                <div>
+                    <label for="username-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Seu Nome *</label>
+                    <div class="relative">
+                        <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-500 text-sm" aria-hidden="true"></i>
+                        <input type="text" id="username-input" required maxlength="30" placeholder="Ex: Ana Souza" autocomplete="nickname"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all">
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label for="room-input" class="block text-xs font-semibold uppercase tracking-wider text-slate-400">ID da Sala *</label>
+                        <button type="button" id="random-room-btn" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+                            <i class="fa-solid fa-wand-magic-sparkles text-[10px]" aria-hidden="true"></i>
+                            <span>Gerar ID</span>
+                        </button>
+                    </div>
+                    <div class="relative">
+                        <i class="fa-solid fa-door-open absolute left-3.5 top-3.5 text-slate-500 text-sm" aria-hidden="true"></i>
+                        <input type="text" id="room-input" required maxlength="40" placeholder="Ex: reuniao-projeto" autocomplete="off"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-mono">
+                    </div>
+                </div>
+
+                <div id="login-status" role="status" class="hidden p-3 rounded-xl text-xs font-medium border flex items-center gap-2">
+                    <i id="login-status-icon" class="fa-solid fa-spinner animate-spin" aria-hidden="true"></i>
+                    <span id="login-status-text">Conectando...</span>
+                </div>
+
+                <button type="submit" id="enter-btn"
+                    class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 group">
+                    <span>Entrar na Sala Virtual</span>
+                    <i class="fa-solid fa-arrow-right text-xs group-hover:translate-x-0.5 transition-transform" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN -->
+    <div id="app-container" class="flex-1 flex flex-col lg:flex-row h-full hidden overflow-hidden">
+
+        <!-- LEFT: STAGE -->
+        <div class="flex-1 flex flex-col bg-slate-950 border-r border-slate-800/80 relative overflow-hidden min-h-0">
+
+            <div class="h-14 px-4 sm:px-6 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/60 backdrop-blur z-20 shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="relative flex h-3 w-3">
+                        <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 motion-reduce:animate-none"></span>
+                        <span id="status-dot" class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <h2 class="font-bold text-xs sm:text-sm tracking-wide text-slate-100 flex items-center gap-2">
+                        <span>Sala:</span>
+                        <span id="current-room-label" class="text-indigo-400 font-mono font-semibold"></span>
+                    </h2>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <span id="role-badge" class="hidden text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-indigo-950/80 text-indigo-300 border border-indigo-800/60">Anfitrião</span>
+                    <span id="connection-status-pill" role="status" class="text-xs px-3 py-1 rounded-full border font-medium bg-emerald-950/80 text-emerald-400 border-emerald-800/60">Online</span>
+                </div>
+            </div>
+
+            <div id="stage-container" class="flex-1 relative flex items-center justify-center p-3 sm:p-6 bg-slate-950/90 overflow-hidden min-h-0">
+                <div id="video-placeholder" class="text-center space-y-4 max-w-md p-6 sm:p-8 border border-slate-800/60 rounded-3xl bg-slate-900/40 backdrop-blur-sm shadow-2xl">
+                    <div class="w-16 h-16 sm:w-20 sm:h-20 mx-auto rounded-2xl bg-indigo-950/50 border border-indigo-800/40 flex items-center justify-center text-indigo-400">
+                        <i class="fa-solid fa-desktop text-2xl sm:text-3xl" aria-hidden="true"></i>
+                    </div>
+                    <div class="space-y-1.5">
+                        <h3 class="text-base font-semibold text-slate-200">Nenhum compartilhamento de tela ativo</h3>
+                        <p class="text-xs text-slate-400 leading-relaxed">O áudio por voz está ativo. Compartilhe a tela do seu PC para transmitir para todos na sala.</p>
+                    </div>
+                </div>
+
+                <video id="shared-video" autoplay playsinline class="max-h-full max-w-full object-contain rounded-2xl shadow-2xl border border-slate-800 hidden"></video>
+
+                <div id="presenter-badge" class="absolute top-6 left-6 bg-slate-900/90 border border-slate-700/80 px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs font-medium text-slate-200 shadow-lg backdrop-blur hidden z-10">
+                    <i class="fa-solid fa-circle text-[8px] text-rose-500 animate-pulse motion-reduce:animate-none" aria-hidden="true"></i>
+                    <span id="presenter-name">Transmitindo tela</span>
+                </div>
+
+                <button id="fullscreen-btn" aria-label="Tela cheia" class="absolute bottom-6 right-6 bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-slate-200 p-2.5 rounded-xl transition-all shadow-lg backdrop-blur hidden z-10">
+                    <i id="fullscreen-icon" class="fa-solid fa-expand text-sm" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div class="h-20 bg-slate-900/80 border-t border-slate-800/80 px-3 sm:px-6 flex items-center justify-between z-20 shrink-0">
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <button id="toggle-mic-btn" class="btn btn-green" aria-label="Ligar ou desligar microfone" aria-pressed="true">
+                        <i id="mic-icon" class="fa-solid fa-microphone" aria-hidden="true"></i>
+                        <span id="mic-btn-text" class="hidden sm:inline">Microfone Ligado</span>
+                    </button>
+                    <button id="share-screen-btn" class="btn btn-indigo" aria-label="Compartilhar tela">
+                        <i class="fa-solid fa-desktop" aria-hidden="true"></i>
+                        <span id="share-btn-text" class="hidden sm:inline">Compartilhar Tela</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <button id="copy-link-btn" aria-label="Copiar link da sala" class="btn btn-slate">
+                        <i class="fa-solid fa-link text-indigo-400" aria-hidden="true"></i>
+                        <span class="hidden sm:inline">Copiar Link</span>
+                    </button>
+                    <button id="leave-btn" aria-label="Sair da sala" class="btn btn-rose">
+                        <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                        <span class="hidden sm:inline">Sair</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: CHAT & PEOPLE -->
+        <div class="w-full lg:w-96 bg-slate-900 flex flex-col h-80 lg:h-full border-t lg:border-t-0 border-slate-800/80 shrink-0">
+
+            <div class="h-14 px-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/90 shrink-0">
+                <div class="flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800" role="tablist">
+                    <button id="tab-chat-btn" role="tab" aria-selected="true" class="tab tab-active">
+                        <i class="fa-solid fa-comments text-[11px]" aria-hidden="true"></i>
+                        <span>Chat</span>
+                    </button>
+                    <button id="tab-users-btn" role="tab" aria-selected="false" class="tab">
+                        <i class="fa-solid fa-users text-[11px]" aria-hidden="true"></i>
+                        <span>Voz & Pessoas</span>
+                        <span id="peer-count-badge" class="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded-full text-[10px]">1</span>
+                    </button>
+                </div>
+                <span class="text-xs text-slate-400 font-mono truncate max-w-[90px]" id="user-self-label"></span>
+            </div>
+
+            <div id="chat-panel" class="flex-1 flex flex-col min-h-0">
+                <div id="messages-container" aria-live="polite" class="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-custom text-xs sm:text-sm">
+                    <div class="text-center my-1">
+                        <span class="text-[11px] bg-slate-800/60 text-slate-400 px-3 py-1 rounded-full border border-slate-700/50 inline-block">
+                            🎉 Sala aberta! Compartilhe o link para outros entrarem.
+                        </span>
+                    </div>
+                </div>
+
+                <form id="chat-form" class="p-3 border-t border-slate-800/80 bg-slate-950/60 flex items-center gap-2">
+                    <input type="text" id="chat-input" maxlength="1000" aria-label="Mensagem" placeholder="Digite sua mensagem..." autocomplete="off"
+                        class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all">
+                    <button type="submit" aria-label="Enviar mensagem"
+                        class="bg-indigo-600 hover:bg-indigo-500 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-md shadow-indigo-600/20 shrink-0">
+                        <i class="fa-solid fa-paper-plane text-xs" aria-hidden="true"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div id="users-panel" class="flex-1 p-4 overflow-y-auto space-y-3 scrollbar-custom hidden">
+                <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Participantes na Sala</h4>
+                <div id="participants-list" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="audio-container" class="hidden"></div>
+
+    <div id="toast" role="status" aria-live="polite" class="fixed top-5 right-5 bg-slate-900 border border-slate-700/80 text-slate-100 px-4 py-3 rounded-2xl shadow-2xl z-[60] transform translate-y-[-160%] transition-all duration-300 flex items-center gap-3 max-w-sm">
+        <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-circle-info text-sm" aria-hidden="true"></i>
+        </div>
+        <span id="toast-msg" class="text-xs font-medium">Notificação</span>
+    </div>
+
+    <script>
+    // ============================================================
+    // CONFIG
+    // ============================================================
+    const MAX_PARTICIPANTS = 6; // mesh P2P: cada pessoa a mais aumenta muito o uso de banda
+    const RTC_CONFIG = {
+        iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+            // Para redes corporativas / 4G, adicione um servidor TURN:
+            // { urls: 'turn:SEU_SERVIDOR:3478', username: 'USUARIO', credential: 'SENHA' }
+        ]
+    };
+
+    // ============================================================
+    // STATE
+    // ============================================================
+    let peer = null;            // identidade do participante (id único)
+    let registry = null;        // Peer "recepção" da sala (id fixo). Quem o possui é o anfitrião.
+    let myUsername = '', roomId = '', myPeerId = '', hostPeerId = '';
+    let isHost = false, connected = false, micOn = false, isSharing = false;
+    let presenterId = null;     // null | 'self' | peerId
+    let localAudioStream = null, localDisplayStream = null, audioCtx = null, silentStream = null;
+    let wantHistory = null, historyAsked = false, lobbyRetry = null, toastTimer = null, reconnectTries = 0;
+
+    const peerConnections = new Map(); // peerId -> { conn, outgoing, username, micActive, isHost, greeted }
+    const voiceCalls = new Map();      // peerId -> MediaConnection (voz)
+    const screenCalls = new Map();     // peerId -> MediaConnection (tela)
+    const speakers = new Map();        // id -> { an, buf, on }
+    const chatHistory = [];
+
+    // ============================================================
+    // DOM
+    // ============================================================
+    const $ = (id) => document.getElementById(id);
+    const loginModal = $('login-modal'), loginForm = $('login-form');
+    const usernameInput = $('username-input'), roomInput = $('room-input'), randomRoomBtn = $('random-room-btn');
+    const loginStatus = $('login-status'), loginStatusIcon = $('login-status-icon'), loginStatusText = $('login-status-text'), enterBtn = $('enter-btn');
+    const appContainer = $('app-container'), currentRoomLabel = $('current-room-label'), roleBadge = $('role-badge');
+    const statusPill = $('connection-status-pill'), statusDot = $('status-dot'), statusPing = $('status-ping');
+    const stageContainer = $('stage-container'), videoPlaceholder = $('video-placeholder'), sharedVideo = $('shared-video');
+    const presenterBadge = $('presenter-badge'), presenterName = $('presenter-name');
+    const fullscreenBtn = $('fullscreen-btn'), fullscreenIcon = $('fullscreen-icon');
+    const toggleMicBtn = $('toggle-mic-btn'), micIcon = $('mic-icon'), micBtnText = $('mic-btn-text');
+    const shareScreenBtn = $('share-screen-btn'), shareBtnText = $('share-btn-text');
+    const copyLinkBtn = $('copy-link-btn'), leaveBtn = $('leave-btn');
+    const tabChatBtn = $('tab-chat-btn'), tabUsersBtn = $('tab-users-btn');
+    const chatPanel = $('chat-panel'), usersPanel = $('users-panel');
+    const peerCountBadge = $('peer-count-badge'), userSelfLabel = $('user-self-label');
+    const messagesContainer = $('messages-container'), chatForm = $('chat-form'), chatInput = $('chat-input');
+    const participantsList = $('participants-list'), audioContainer = $('audio-container');
+    const toast = $('toast'), toastMsg = $('toast-msg');
+
+    // ============================================================
+    // HELPERS
+    // ============================================================
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const clean = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max);
+    const nowTime = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const sanitizeRoomId = (s) => s.toLowerCase().trim().replace(/[^a-z0-9_-]/g, '-').slice(0, 40);
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showToast(message) {
+        toastMsg.textContent = message;
+        toast.classList.remove('translate-y-[-160%]');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.add('translate-y-[-160%]'), 3500);
+    }
+
+    function uniqueName(name, id) {
+        const taken = new Set([myUsername]);
+        peerConnections.forEach((info, k) => { if (k !== id) taken.add(info.username); });
+        let n = name, i = 2;
+        while (taken.has(n)) n = `${name} (${i++})`;
+        return n;
+    }
+
+    function setStatus(state) {
+        const map = {
+            online: ['Online', 'bg-emerald-950/80 text-emerald-400 border-emerald-800/60', 'bg-emerald-500'],
+            reconnecting: ['Reconectando...', 'bg-amber-950/80 text-amber-300 border-amber-800/60', 'bg-amber-500'],
+            offline: ['Offline', 'bg-rose-950/80 text-rose-300 border-rose-800/60', 'bg-rose-500']
+        }[state];
+        statusPill.className = 'text-xs px-3 py-1 rounded-full border font-medium ' + map[1];
+        statusPill.textContent = map[0];
+        statusDot.className = 'relative inline-flex rounded-full h-3 w-3 ' + map[2];
+        statusPing.classList.toggle('hidden', state !== 'online');
+    }
+
+    function setLoginState(state, message) {
+        loginStatus.className = 'p-3 rounded-xl text-xs font-medium border flex items-center gap-2 ' +
+            (state === 'error' ? 'bg-rose-950/80 text-rose-300 border-rose-800' : 'bg-indigo-950/80 text-indigo-300 border-indigo-800');
+        loginStatusIcon.className = state === 'error'
+            ? 'fa-solid fa-circle-exclamation text-rose-400'
+            : 'fa-solid fa-spinner animate-spin text-indigo-400';
+        enterBtn.disabled = state === 'loading';
+        enterBtn.classList.toggle('opacity-60', state === 'loading');
+        enterBtn.classList.toggle('cursor-not-allowed', state === 'loading');
+        loginStatusText.textContent = message;
+    }
+
+    // ============================================================
+    // INIT / LOGIN
+    // ============================================================
+    window.addEventListener('DOMContentLoaded', () => {
+        const rParam = new URLSearchParams(location.search).get('room');
+        if (rParam) roomInput.value = sanitizeRoomId(rParam); else generateRandomRoom();
+        if (!navigator.mediaDevices?.getDisplayMedia) shareScreenBtn.classList.add('hidden'); // ex.: celulares
+    });
+
+    randomRoomBtn.addEventListener('click', generateRandomRoom);
+    function generateRandomRoom() {
+        roomInput.value = `sala-${Math.random().toString(36).substring(2, 8)}`;
+    }
+
+    loginForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        myUsername = clean(usernameInput.value, 30);
+        roomId = sanitizeRoomId(roomInput.value).replace(/^-+|-+$/g, '');
+        if (!myUsername || !roomId) { setLoginState('error', 'Informe um nome e um ID de sala válidos.'); return; }
+        hostPeerId = `vroom-${roomId}-host`;
+
+        try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); audioCtx.resume(); } catch (_) {}
+
+        setLoginState('loading', 'Obtendo permissão de áudio...');
+        try {
+            localAudioStream = await getMic();
+        } catch (err) {
+            console.warn('Microfone indisponível:', err);
+            localAudioStream = null;
+            showToast('Aviso: microfone não ativado. Você pode ativá-lo depois.');
+        }
+        micOn = !!localAudioStream;
+        setMicUI();
+
+        setLoginState('loading', 'Conectando ao servidor WebRTC...');
+        try {
+            await createPeer();
+            await connectRoom();
+        } catch (err) {
+            console.error(err);
+            failLogin('Falha ao conectar. Tente novamente.');
+        }
+    });
+
+    function failLogin(msg) {
+        destroyAll();
+        setLoginState('error', msg);
+    }
+
+    function getMic() {
+        return navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+            video: false
+        });
+    }
+
+    // Stream silencioso: permite participar da chamada de voz mesmo sem microfone
+    function outgoingAudio() {
+        if (localAudioStream) return localAudioStream;
+        if (!silentStream) silentStream = audioCtx.createMediaStreamDestination().stream;
+        return silentStream;
+    }
+
+    // ============================================================
+    // PEERJS: IDENTIDADE + "RECEPÇÃO" DA SALA
+    // ============================================================
+    function createPeer() {
+        return new Promise((resolve, reject) => {
+            const id = `vroom-${roomId}-peer-${Math.random().toString(36).slice(2, 9)}`;
+            let opened = false;
+            peer = new Peer(id, { debug: 1, config: RTC_CONFIG });
+
+            peer.on('open', (pid) => {
+                myPeerId = pid;
+                reconnectTries = 0;
+                if (connected) setStatus('online');
+                if (!opened) { opened = true; resolve(); }
+            });
+            peer.on('error', (err) => { if (!opened) reject(err); else handlePeerError(err); });
+            peer.on('disconnected', () => {
+                if (!peer || peer.destroyed) return;
+                setStatus('reconnecting');
+                setTimeout(() => {
+                    if (peer && !peer.destroyed && peer.disconnected) {
+                        if (++reconnectTries > 10) { setStatus('offline'); return; }
+                        peer.reconnect();
+                    }
+                }, 1500 * Math.min(reconnectTries + 1, 5));
+            });
+            peer.on('connection', (conn) => {
+                if (!connected || conn.label === 'lobby') { conn.close(); return; }
+                bindDataConnection(conn, false);
+            });
+            peer.on('call', (call) => {
+                const kind = call.metadata?.kind === 'screen' ? 'screen' : 'voice';
+                call.answer(kind === 'voice' ? outgoingAudio() : undefined);
+                bindMediaCall(call, kind);
+            });
+        });
+    }
+
+    function handlePeerError(err) {
+        console.error('PeerJS:', err);
+        if (err.type === 'peer-unavailable') {
+            if (lobbyRetry) lobbyRetry(); else showToast('Participante indisponível.');
+        } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
+            setStatus('offline');
+            showToast('Problema de conexão com o servidor.');
+        }
+    }
+
+    // Tenta ocupar o id fixo da sala (vira anfitrião). Resolve true/false.
+    function tryClaim() {
+        return new Promise((resolve) => {
+            const r = new Peer(hostPeerId, { debug: 0, config: RTC_CONFIG });
+            r.on('open', () => {
+                registry = r;
+                r.on('connection', onLobbyConn);
+                r.on('disconnected', () => { if (!r.destroyed) r.reconnect(); });
+                r.on('error', () => {});
+                resolve(true);
+            });
+            r.on('error', () => { if (registry !== r) { r.destroy(); resolve(false); } });
+        });
+    }
+
+    function listPeers() {
+        const list = [{ id: myPeerId }];
+        peerConnections.forEach((info, id) => { if (info.conn.open) list.push({ id }); });
+        return list;
+    }
+
+    function onLobbyConn(c) {
+        c.on('open', () => {
+            if (c.label !== 'lobby') { c.close(); return; }
+            const peers = listPeers();
+            c.send(peers.length >= MAX_PARTICIPANTS ? { type: 'full' } : { type: 'peer-list', peers });
+            setTimeout(() => c.close(), 2000);
+        });
+    }
+
+    async function connectRoom(attempt = 0) {
+        if (await tryClaim()) {
+            isHost = true;
+            onRoomConnected();
+            return;
+        }
+        setLoginState('loading', 'Entrando na sala...');
+        let done = false;
+        const lobby = peer.connect(hostPeerId, { label: 'lobby', reliable: true });
+        const finish = () => { done = true; lobbyRetry = null; };
+        const retry = () => {
+            if (done) return;
+            finish();
+            try { lobby.close(); } catch (_) {}
+            if (attempt < 3) setTimeout(() => connectRoom(attempt + 1), 1500 * (attempt + 1));
+            else failLogin('Não foi possível entrar na sala. Tente novamente.');
+        };
+        lobbyRetry = retry;
+        lobby.on('error', retry);
+        lobby.on('close', () => { if (!done) retry(); });
+        setTimeout(() => { if (!done) retry(); }, 8000);
+
+        lobby.on('data', (d) => {
+            if (done || !d) return;
+            if (d.type === 'full') { finish(); failLogin('A sala está cheia.'); return; }
+            if (d.type !== 'peer-list' || !Array.isArray(d.peers)) return;
+            finish();
+            const ids = d.peers.map(p => clean(p?.id, 120)).filter(id => id && id !== myPeerId).slice(0, MAX_PARTICIPANTS);
+            onRoomConnected();
+            wantHistory = ids[0] || null;
+            ids.forEach(id => bindDataConnection(
+                peer.connect(id, { metadata: { username: myUsername, micActive: micOn }, reliable: true }), true));
+        });
+    }
+
+    function onRoomConnected() {
+        if (connected) return;
+        connected = true;
+        loginModal.classList.add('hidden');
+        appContainer.classList.remove('hidden');
+        currentRoomLabel.textContent = roomId;
+        userSelfLabel.textContent = myUsername;
+        setStatus('online');
+        updateRoleUI();
+        appendSystemMsg(isHost ? 'Você criou a sala. Aguardando participantes...' : 'Você entrou na sala virtual!');
+        if (localAudioStream) watchSpeaking('self', localAudioStream);
+        updateParticipantsList();
+        try { history.replaceState(null, '', `?room=${encodeURIComponent(roomId)}`); } catch (_) {}
+    }
+
+    function updateRoleUI() {
+        roleBadge.classList.toggle('hidden', !isHost);
+    }
+
+    // Se o anfitrião sair, um dos que ficaram assume o id da sala
+    async function migrateHost() {
+        for (let i = 0; i < 5; i++) {
+            await sleep(400 + Math.random() * 1200 + i * 1500);
+            if (!connected || registry || [...peerConnections.values()].some(p => p.isHost)) return;
+            if (await tryClaim()) {
+                isHost = true;
+                updateRoleUI();
+                broadcastData({ type: 'host-changed' });
+                appendSystemMsg('Você agora é o anfitrião da sala.');
+                updateParticipantsList();
+                return;
+            }
+        }
+    }
+
+    // ============================================================
+    // CONEXÕES DE DADOS
+    // ============================================================
+    function bindDataConnection(conn, outgoing) {
+        conn.on('open', () => {
+            const existing = peerConnections.get(conn.peer);
+            if (existing && existing.conn !== conn && existing.conn.open) {
+                // conexão duplicada: mantém a iniciada pelo menor id (mesma regra nos dois lados)
+                const keepNew = (outgoing ? myPeerId : conn.peer) < (existing.outgoing ? myPeerId : conn.peer);
+                if (!keepNew) { conn.close(); return; }
+                peerConnections.delete(conn.peer);
+                existing.conn.close();
+            } else if (!existing && peerConnections.size >= MAX_PARTICIPANTS - 1) {
+                conn.send({ type: 'full' });
+                setTimeout(() => conn.close(), 300);
+                return;
+            }
+
+            const info = {
+                conn, outgoing,
+                username: outgoing ? 'Participante' : (clean(conn.metadata?.username, 30) || 'Participante'),
+                micActive: outgoing ? true : conn.metadata?.micActive !== false,
+                isHost: false, greeted: false
+            };
+            peerConnections.set(conn.peer, info);
+
+            conn.send({ type: 'handshake', username: myUsername, micActive: micOn, isHost: !!registry, sharing: isSharing });
+
+            // Apenas quem iniciou a conexão liga para a voz (evita chamadas duplicadas)
+            if (outgoing) bindMediaCall(peer.call(conn.peer, outgoingAudio(), { metadata: { kind: 'voice' } }), 'voice');
+            if (isSharing) callScreen(conn.peer);
+            updateParticipantsList();
+        });
+
+        conn.on('data', (data) => handleData(data, conn));
+        const gone = () => { if (peerConnections.get(conn.peer)?.conn === conn) removePeer(conn.peer); };
+        conn.on('close', gone);
+        conn.on('error', gone);
+    }
+
+    function removePeer(id) {
+        const info = peerConnections.get(id);
+        if (!info) return;
+        peerConnections.delete(id);
+        try { info.conn.close(); } catch (_) {}
+        const vc = voiceCalls.get(id); voiceCalls.delete(id); vc?.close();
+        const sc = screenCalls.get(id); screenCalls.delete(id); sc?.close();
+        removeAudio(id);
+        unwatch(id);
+        if (presenterId === id) clearStage();
+        if (info.greeted) {
+            appendSystemMsg(`${info.username} saiu da sala.`);
+            showToast(`${info.username} saiu.`);
+        }
+        updateParticipantsList();
+        if (info.isHost) migrateHost();
+    }
+
+    function handleData(data, conn) {
+        const info = peerConnections.get(conn.peer);
+        if (!info || info.conn !== conn || !data || typeof data !== 'object') return;
+
+        switch (data.type) {
+            case 'handshake': {
+                info.username = uniqueName(clean(data.username, 30) || 'Participante', conn.peer);
+                info.micActive = data.micActive !== false;
+                info.isHost = data.isHost === true;
+                if (!info.greeted) {
+                    info.greeted = true;
+                    appendSystemMsg(`${info.username} entrou na sala.`);
+                    showToast(`${info.username} conectou-se!`);
+                }
+                if (data.sharing === true && presenterId === null) {
+                    presenterName.textContent = `${info.username} está transmitindo`;
+                    presenterBadge.classList.remove('hidden');
+                }
+                if (wantHistory === conn.peer) {
+                    wantHistory = null;
+                    historyAsked = true;
+                    conn.send({ type: 'history-request' });
+                }
+                updateParticipantsList();
+                break;
+            }
+            case 'chat': {
+                const text = clean(data.text, 1000);
+                if (text) addChat(info.username, text, nowTime(), false);
+                break;
+            }
+            case 'mic-state':
+                info.micActive = data.active === true;
+                updateParticipantsList();
+                break;
+            case 'screen-state':
+                if (data.active === true) {
+                    appendSystemMsg(`${info.username} iniciou compartilhamento de tela.`);
+                    presenterName.textContent = `${info.username} está transmitindo`;
+                    presenterBadge.classList.remove('hidden');
+                } else {
+                    appendSystemMsg(`${info.username} encerrou a transmissão.`);
+                    if (presenterId === conn.peer) clearStage(); else if (presenterId === null) presenterBadge.classList.add('hidden');
+                }
+                break;
+            case 'host-changed':
+                peerConnections.forEach(p => { p.isHost = false; });
+                info.isHost = true;
+                updateParticipantsList();
+                break;
+            case 'history-request':
+                conn.send({ type: 'history', items: chatHistory.slice(-50) });
+                break;
+            case 'history': {
+                if (!historyAsked || !Array.isArray(data.items)) return;
+                historyAsked = false;
+                const items = data.items.slice(-50)
+                    .map(m => ({ sender: clean(m?.sender, 30), text: clean(m?.text, 1000), time: clean(m?.time, 8) }))
+                    .filter(m => m.sender && m.text);
+                if (items.length) {
+                    appendSystemMsg('Histórico recente do chat');
+                    items.forEach(m => addChat(m.sender, m.text, m.time, false));
+                }
+                break;
+            }
+            case 'full':
+                showToast('A sala está cheia.');
+                break;
+        }
+    }
+
+    function broadcastData(data) {
+        peerConnections.forEach((info) => { if (info.conn.open) info.conn.send(data); });
+    }
+
+    // ============================================================
+    // CHAMADAS DE MÍDIA (VOZ E TELA)
+    // ============================================================
+    function bindMediaCall(call, kind) {
+        if (!call) return;
+        const map = kind === 'screen' ? screenCalls : voiceCalls;
+        const old = map.get(call.peer);
+        map.set(call.peer, call);
+        if (old && old !== call) old.close();
+
+        call.on('stream', (stream) => {
+            if (kind === 'screen') showRemoteScreen(call.peer, stream);
+            else { playRemoteAudio(call.peer, stream); watchSpeaking(call.peer, stream); }
+        });
+        const ended = () => {
+            if (map.get(call.peer) !== call) return; // foi substituída
+            map.delete(call.peer);
+            if (kind === 'screen') { if (presenterId === call.peer) clearStage(); }
+            else { removeAudio(call.peer); unwatch(call.peer); }
+        };
+        call.on('close', ended);
+        call.on('error', ended);
+    }
+
+    function playRemoteAudio(peerId, stream) {
+        let el = document.getElementById(`audio-${peerId}`);
+        if (!el) {
+            el = document.createElement('audio');
+            el.id = `audio-${peerId}`;
+            el.autoplay = true;
+            el.playsInline = true;
+            audioContainer.appendChild(el);
+        }
+        el.srcObject = stream;
+        el.play().catch(() => {});
+    }
+
+    function removeAudio(peerId) {
+        const el = document.getElementById(`audio-${peerId}`);
+        if (el) { el.srcObject = null; el.remove(); }
+    }
+
+    // ============================================================
+    // MICROFONE
+    // ============================================================
+    function setMicUI() {
+        const hasMic = !!localAudioStream;
+        toggleMicBtn.className = 'btn ' + (micOn ? 'btn-green' : 'btn-slate');
+        micIcon.className = 'fa-solid ' + (micOn ? 'fa-microphone' : 'fa-microphone-slash text-rose-400');
+        micBtnText.textContent = micOn ? 'Microfone Ligado' : hasMic ? 'Microfone Desligado' : 'Ativar Microfone';
+        toggleMicBtn.setAttribute('aria-pressed', String(micOn));
+    }
+
+    toggleMicBtn.addEventListener('click', async () => {
+        audioCtx?.resume();
+        if (!localAudioStream) {
+            try {
+                localAudioStream = await getMic();
+            } catch (_) {
+                showToast('Não foi possível acessar o microfone.');
+                return;
+            }
+            const track = localAudioStream.getAudioTracks()[0];
+            voiceCalls.forEach(c => c.peerConnection?.getSenders().find(s => s.track?.kind === 'audio')?.replaceTrack(track));
+            watchSpeaking('self', localAudioStream);
+            micOn = true;
+        } else {
+            micOn = !micOn;
+            localAudioStream.getAudioTracks().forEach(t => { t.enabled = micOn; });
+        }
+        setMicUI();
+        broadcastData({ type: 'mic-state', active: micOn });
+        updateParticipantsList();
+    });
+
+    // Detecção real de fala
+    function watchSpeaking(id, stream) {
+        if (!audioCtx || !stream.getAudioTracks().length) return;
+        unwatch(id);
+        const an = audioCtx.createAnalyser();
+        an.fftSize = 512;
+        audioCtx.createMediaStreamSource(stream).connect(an);
+        speakers.set(id, { an, buf: new Uint8Array(an.fftSize), on: false });
+    }
+    function unwatch(id) { speakers.delete(id); }
+
+    setInterval(() => {
+        speakers.forEach((s, id) => {
+            s.an.getByteTimeDomainData(s.buf);
+            let sum = 0;
+            for (const v of s.buf) { const d = (v - 128) / 128; sum += d * d; }
+            const on = Math.sqrt(sum / s.buf.length) > 0.04;
+            if (on !== s.on) {
+                s.on = on;
+                document.querySelector(`[data-pid="${id}"]`)?.classList.toggle('mic-wave', on);
+            }
+        });
+    }, 150);
+
+    // ============================================================
+    // COMPARTILHAMENTO DE TELA
+    // ============================================================
+    function callScreen(id) {
+        if (!localDisplayStream || !peer) return;
+        bindMediaCall(peer.call(id, localDisplayStream, { metadata: { kind: 'screen' } }), 'screen');
+    }
+
+    function showRemoteScreen(peerId, stream) {
+        presenterId = peerId;
+        sharedVideo.muted = false;
+        sharedVideo.srcObject = stream;
+        sharedVideo.classList.remove('hidden');
+        videoPlaceholder.classList.add('hidden');
+        fullscreenBtn.classList.remove('hidden');
+        const name = peerConnections.get(peerId)?.username;
+        if (name) presenterName.textContent = `${name} está transmitindo`;
+        presenterBadge.classList.remove('hidden');
+        sharedVideo.play().catch(() => showToast('Toque no vídeo para ativar o áudio da transmissão.'));
+    }
+
+    function clearStage() {
+        presenterId = null;
+        sharedVideo.srcObject = null;
+        sharedVideo.classList.add('hidden');
+        videoPlaceholder.classList.remove('hidden');
+        fullscreenBtn.classList.add('hidden');
+        presenterBadge.classList.add('hidden');
+    }
+
+    shareScreenBtn.addEventListener('click', async () => {
+        if (isSharing) { stopScreenSharing(); return; }
+        if (presenterId && presenterId !== 'self') {
+            showToast('Outra pessoa já está transmitindo a tela.');
+            return;
+        }
+        try {
+            localDisplayStream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 30 } }, audio: true });
+        } catch (err) {
+            console.error(err);
+            showToast('Compartilhamento cancelado ou não permitido.');
+            return;
+        }
+        isSharing = true;
+        presenterId = 'self';
+        sharedVideo.muted = true; // evita eco do próprio áudio
+        sharedVideo.srcObject = localDisplayStream;
+        sharedVideo.classList.remove('hidden');
+        videoPlaceholder.classList.add('hidden');
+        fullscreenBtn.classList.remove('hidden');
+        presenterName.textContent = 'Você está transmitindo';
+        presenterBadge.classList.remove('hidden');
+        shareBtnText.textContent = 'Parar Compartilhamento';
+        shareScreenBtn.className = 'btn btn-rose';
+
+        peerConnections.forEach((_, id) => callScreen(id));
+        broadcastData({ type: 'screen-state', active: true });
+        appendSystemMsg('Você iniciou o compartilhamento de tela.');
+        localDisplayStream.getVideoTracks()[0].addEventListener('ended', stopScreenSharing);
+    });
+
+    function stopScreenSharing() {
+        if (!isSharing) return;
+        isSharing = false;
+        const calls = [...screenCalls.values()];
+        screenCalls.clear();
+        calls.forEach(c => c.close());
+        localDisplayStream?.getTracks().forEach(t => t.stop());
+        localDisplayStream = null;
+        clearStage();
+        shareBtnText.textContent = 'Compartilhar Tela';
+        shareScreenBtn.className = 'btn btn-indigo';
+        broadcastData({ type: 'screen-state', active: false });
+        appendSystemMsg('Você encerrou o compartilhamento de tela.');
+    }
+
+    fullscreenBtn.addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else stageContainer.requestFullscreen?.().catch(console.error);
+    });
+    document.addEventListener('fullscreenchange', () => {
+        fullscreenIcon.className = 'fa-solid text-sm ' + (document.fullscreenElement ? 'fa-compress' : 'fa-expand');
+    });
+
+    // ============================================================
+    // CHAT
+    // ============================================================
+    chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const text = clean(chatInput.value, 1000);
+        if (!text) return;
+        addChat(myUsername, text, nowTime(), true);
+        broadcastData({ type: 'chat', text });
+        chatInput.value = '';
+    });
+
+    function addChat(sender, text, time, isSelf) {
+        chatHistory.push({ sender, text, time });
+        if (chatHistory.length > 50) chatHistory.shift();
+
+        const div = document.createElement('div');
+        div.className = `flex flex-col ${isSelf ? 'items-end' : 'items-start'} space-y-1`;
+        div.innerHTML = `
+            <div class="flex items-center gap-1.5 px-1">
+                <span class="text-[10px] font-medium text-slate-400">${escapeHtml(sender)}</span>
+                <span class="text-[9px] text-slate-600">${escapeHtml(time)}</span>
+            </div>
+            <div class="max-w-[85%] break-words rounded-2xl px-3.5 py-2 text-xs sm:text-sm ${isSelf
+                ? 'bg-indigo-600 text-white rounded-br-md shadow-md shadow-indigo-600/10'
+                : 'bg-slate-800 text-slate-100 rounded-bl-md border border-slate-700/60'}">${escapeHtml(text)}</div>`;
+        messagesContainer.appendChild(div);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    function appendSystemMsg(text) {
+        const div = document.createElement('div');
+        div.className = 'text-center my-1.5';
+        div.innerHTML = `<span class="text-[10px] bg-slate-800/80 text-slate-400 px-3 py-1 rounded-full border border-slate-700/50 inline-block">${escapeHtml(text)}</span>`;
+        messagesContainer.appendChild(div);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // ============================================================
+    // PARTICIPANTES
+    // ============================================================
+    function updateParticipantsList() {
+        participantsList.innerHTML = '';
+        addParticipantItem('self', myUsername, true, isHost, micOn);
+        peerConnections.forEach((info, id) => addParticipantItem(id, info.username, false, info.isHost, info.micActive));
+        peerCountBadge.textContent = peerConnections.size + 1;
+    }
+
+    function addParticipantItem(id, name, isMe, isRoomHost, micActive) {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2.5 bg-slate-950 border border-slate-800/80 rounded-xl text-xs';
+        item.innerHTML = `
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div data-pid="${escapeHtml(id)}" class="shrink-0 w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold text-xs ${speakers.get(id)?.on ? 'mic-wave' : ''}">
+                    ${escapeHtml(name.charAt(0).toUpperCase())}
+                </div>
+                <span class="font-medium text-slate-200 truncate">${escapeHtml(name)} ${isMe ? '<span class="text-slate-500">(Você)</span>' : ''}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+                <i class="fa-solid ${micActive ? 'fa-microphone text-emerald-400' : 'fa-microphone-slash text-rose-400'} text-xs" aria-label="${micActive ? 'Microfone ligado' : 'Microfone desligado'}"></i>
+                ${isRoomHost ? '<span class="text-[10px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-800/50">Host</span>' : ''}
+            </div>`;
+        participantsList.appendChild(item);
+    }
+
+    // ============================================================
+    // ABAS / LINK / SAIR
+    // ============================================================
+    function selectTab(name) {
+        const chat = name === 'chat';
+        tabChatBtn.className = 'tab' + (chat ? ' tab-active' : '');
+        tabUsersBtn.className = 'tab' + (chat ? '' : ' tab-active');
+        tabChatBtn.setAttribute('aria-selected', String(chat));
+        tabUsersBtn.setAttribute('aria-selected', String(!chat));
+        chatPanel.classList.toggle('hidden', !chat);
+        usersPanel.classList.toggle('hidden', chat);
+    }
+    tabChatBtn.addEventListener('click', () => selectTab('chat'));
+    tabUsersBtn.addEventListener('click', () => selectTab('users'));
+
+    copyLinkBtn.addEventListener('click', async () => {
+        const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(roomId)}`;
+        try {
+            await navigator.clipboard.writeText(url);
+        } catch (_) {
+            const ta = document.createElement('textarea');
+            ta.value = url;
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); } catch (__) {}
+            ta.remove();
+        }
+        showToast('Link da sala copiado com sucesso!');
+    });
+
+    function destroyAll() {
+        try { localDisplayStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
+        try { localAudioStream?.getTracks().forEach(t => t.stop()); } catch (_) {}
+        voiceCalls.forEach(c => c.close());
+        screenCalls.forEach(c => c.close());
+        peerConnections.forEach(i => { try { i.conn.close(); } catch (_) {} });
+        voiceCalls.clear(); screenCalls.clear(); peerConnections.clear(); speakers.clear();
+        try { peer?.destroy(); } catch (_) {}
+        try { registry?.destroy(); } catch (_) {}
+        peer = registry = localAudioStream = localDisplayStream = null;
+        isHost = connected = isSharing = false;
+        lobbyRetry = null;
+    }
+
+    leaveBtn.addEventListener('click', () => {
+        destroyAll();
+        location.href = `${location.pathname}?room=${encodeURIComponent(roomId)}`;
+    });
+
+    // Avisa os outros imediatamente ao fechar a aba
+    window.addEventListener('pagehide', destroyAll);
+    </script>
+</body>
+</html>
